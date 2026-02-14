@@ -4,7 +4,7 @@
 #include <regex>
 
 int main() {
-    std::ifstream input("lab1test.cpp");
+    std::ifstream input("test.cpp");
     if (!input.is_open()) {
         std::cerr << "Error: cannot open file lab1test.cpp\n";
         return 1;
@@ -17,7 +17,7 @@ int main() {
 
     size_t openComment = code.find("/*");
     size_t closeComment = code.find("*/");
-    if (openComment != std::string::npos && closeComment == std::string::npos) {
+    if ((openComment != std::string::npos && closeComment == std::string::npos) || (openComment == std::string::npos && closeComment != std::string::npos)) {
         std::cerr << "Error: unclosed multi-line comment\n";
         return 1;
     }
@@ -33,7 +33,7 @@ int main() {
         code = std::regex_replace(code, multipleSpaces, " ");
 
         std::regex emptyLines("\n{2,}");
-        code = std::regex_replace(code, emptyLines, "\n");
+        code = std::regex_replace(code, emptyLines, "\n"); 
 
     }
     catch (const std::regex_error&) {
@@ -41,7 +41,6 @@ int main() {
         return 1;
     }
 
-    // trim spaces manually line by line (portable solution)
     std::stringstream cleanedStream(code);
     std::string line;
     std::string finalCode;

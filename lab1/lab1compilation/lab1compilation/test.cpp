@@ -4,14 +4,13 @@
 
 using namespace std;
 
-/*
    многострочный
    комментарий
 */
 
 int main() {
-    int x;
-    int y;
+    int x; // однострочный комментарий
+    int                         y;
 
     x = 2;
     y = 2;
