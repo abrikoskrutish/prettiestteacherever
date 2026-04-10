@@ -11,22 +11,21 @@ struct Token {
     string value;
 };
 
+vector<string> errors;
+
 // Ключевые слова
 bool isKeyword(string s) {
     return (s == "int" || s == "if" || s == "else" || s == "return" || s == "using" || s == "namespace");
 }
 
-// Разделители
 bool isDelimiter(char c) {
     return (c == ';' || c == ',' || c == '(' || c == ')' || c == '{' || c == '}');
 }
 
-// Операторы
 bool isOperatorChar(char c) {
     return string("+-*/=<>&|!").find(c) != string::npos;
 }
 
-// Чтение файла + удаление BOM
 string readFile(string filename) {
     ifstream file(filename, ios::binary);
     string content((istreambuf_iterator<char>(file)), istreambuf_iterator<char>());
@@ -49,13 +48,11 @@ vector<Token> tokenize(string code) {
 
         if (isspace(code[i])) continue;
 
-        // #include
         if (code[i] == '#') {
             while (i < code.length() && code[i] != '\n') i++;
             continue;
         }
 
-        // комментарии
         if (code[i] == '/' && i + 1 < code.length() && code[i + 1] == '/') {
             while (i < code.length() && code[i] != '\n') i++;
             continue;
@@ -68,20 +65,28 @@ vector<Token> tokenize(string code) {
             continue;
         }
 
-        // строки
+        // строки + ошибка
         if (code[i] == '"') {
             current = "";
             i++;
+
             while (i < code.length() && code[i] != '"') {
                 current += code[i++];
             }
-            tokens.push_back({ "STRING", current });
+
+            if (i >= code.length()) {
+                errors.push_back("Ошибка: незакрытая строка");
+            }
+            else {
+                tokens.push_back({ "STRING", current });
+            }
             continue;
         }
 
         // слова
         if (isalpha(code[i])) {
             current = "";
+
             while (i < code.length() && isalnum(code[i])) {
                 current += code[i++];
             }
@@ -93,18 +98,34 @@ vector<Token> tokenize(string code) {
                 tokens.push_back({ "IDENTIFIER", current });
         }
 
-        // числа
+        // числа + ошибки
         else if (isdigit(code[i])) {
             current = "";
-            while (i < code.length() && isdigit(code[i])) {
+            bool hasDot = false;
+
+            while (i < code.length() && (isdigit(code[i]) || code[i] == '.')) {
+                if (code[i] == '.') {
+                    if (hasDot) {
+                        errors.push_back("Ошибка: некорректное число: " + current + ".");
+                        break;
+                    }
+                    hasDot = true;
+                }
                 current += code[i++];
             }
+
+            if (i < code.length() && isalpha(code[i])) {
+                errors.push_back("Ошибка: буквы в числе: " + current + code[i]);
+            }
+
             i--;
 
-            tokens.push_back({ "CONSTANT_INT", current });
+            if (hasDot)
+                tokens.push_back({ "CONSTANT_FLOAT", current });
+            else
+                tokens.push_back({ "CONSTANT_INT", current });
         }
 
-        // операторы
         else if (isOperatorChar(code[i])) {
             current = "";
             current += code[i];
@@ -117,27 +138,53 @@ vector<Token> tokenize(string code) {
             tokens.push_back({ "OPERATOR", current });
         }
 
-        // разделители
         else if (isDelimiter(code[i])) {
             tokens.push_back({ "DELIMITER", string(1, code[i]) });
+        }
+
+        else {
+            errors.push_back("Ошибка: недопустимый символ: " + string(1, code[i]));
         }
     }
 
     return tokens;
 }
 
-int main() {
+int main()
+
+
+{
 
     setlocale(LC_ALL, "Russian");
 
     string code = readFile("test.cpp");
     vector<Token> tokens = tokenize(code);
 
+
     cout << "Лексема\t\tТип\n";
     cout << "--------------------------\n";
 
     for (auto t : tokens) {
         cout << t.value << "\t\t" << t.type << endl;
+    }
+
+    cout << "\nСписок токенов:\n[";
+    for (int i = 0; i < tokens.size(); i++) {
+        cout << "(" << tokens[i].type << ", " << tokens[i].value << ")";
+        if (i != tokens.size() - 1) cout << ", ";
+    }
+    cout << "]\n";
+
+    cout << "\nРезультат анализа:\n";
+
+    if (errors.empty()) {
+        cout << "Лексический анализ завершён успешно. Ошибок не найдено.\n";
+    }
+    else {
+        cout << "Обнаружены ошибки:\n";
+        for (auto e : errors) {
+            cout << e << endl;
+        }
     }
 
     return 0;
