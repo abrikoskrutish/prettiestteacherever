@@ -13,9 +13,14 @@ struct Token {
 
 vector<string> errors;
 
+void addError(const string& text, int pos) {
+    errors.push_back("Ошибка на позиции " + to_string(pos) + ": " + text);
+}
+
 // Ключевые слова
-bool isKeyword(string s) {
-    return (s == "int" || s == "if" || s == "else" || s == "return" || s == "using" || s == "namespace");
+bool isKeyword(const string& s) {
+    return (s == "int" || s == "float" || s == "if" || s == "else" ||
+        s == "return" || s == "using" || s == "namespace");
 }
 
 bool isDelimiter(char c) {
@@ -24,6 +29,14 @@ bool isDelimiter(char c) {
 
 bool isOperatorChar(char c) {
     return string("+-*/=<>&|!").find(c) != string::npos;
+}
+
+// Проверка, есть ли идентификатор в списке разрешённых
+bool isKnownIdentifier(const string& s, const vector<string>& identifiers) {
+    for (const auto& id : identifiers) {
+        if (id == s) return true;
+    }
+    return false;
 }
 
 string readFile(string filename) {
@@ -40,42 +53,56 @@ string readFile(string filename) {
     return content;
 }
 
-vector<Token> tokenize(string code) {
+vector<Token> tokenize(const string& code) {
     vector<Token> tokens;
+
+    // Изначально известные идентификаторы
+    vector<string> identifiers = { "std", "cout", "endl" };
+
     string current;
+    errors.clear();
 
-    for (int i = 0; i < code.length(); i++) {
+    for (int i = 0; i < (int)code.length(); i++) {
 
-        if (isspace(code[i])) continue;
+        if (isspace((unsigned char)code[i])) continue;
 
         if (code[i] == '#') {
-            while (i < code.length() && code[i] != '\n') i++;
+            while (i < (int)code.length() && code[i] != '\n') i++;
             continue;
         }
 
-        if (code[i] == '/' && i + 1 < code.length() && code[i + 1] == '/') {
-            while (i < code.length() && code[i] != '\n') i++;
+        if (code[i] == '/' && i + 1 < (int)code.length() && code[i + 1] == '/') {
+            while (i < (int)code.length() && code[i] != '\n') i++;
             continue;
         }
 
-        if (code[i] == '/' && i + 1 < code.length() && code[i + 1] == '*') {
+        if (code[i] == '/' && i + 1 < (int)code.length() && code[i + 1] == '*') {
+            int commentStart = i + 1;
             i += 2;
-            while (i + 1 < code.length() && !(code[i] == '*' && code[i + 1] == '/')) i++;
+
+            while (i + 1 < (int)code.length() && !(code[i] == '*' && code[i + 1] == '/')) i++;
+
+            if (i + 1 >= (int)code.length()) {
+                addError("незакрытый комментарий", commentStart);
+                break;
+            }
+
             i++;
             continue;
         }
 
-        // строки + ошибка
+        // строки
         if (code[i] == '"') {
+            int stringStart = i + 1;
             current = "";
             i++;
 
-            while (i < code.length() && code[i] != '"') {
+            while (i < (int)code.length() && code[i] != '"') {
                 current += code[i++];
             }
 
-            if (i >= code.length()) {
-                errors.push_back("Ошибка: незакрытая строка");
+            if (i >= (int)code.length()) {
+                addError("незакрытая строка", stringStart);
             }
             else {
                 tokens.push_back({ "STRING", current });
@@ -84,53 +111,86 @@ vector<Token> tokenize(string code) {
         }
 
         // слова
-        if (isalpha(code[i])) {
+        if (isalpha((unsigned char)code[i])) {
+            int wordStart = i + 1;
             current = "";
 
-            while (i < code.length() && isalnum(code[i])) {
+            while (i < (int)code.length() && isalnum((unsigned char)code[i])) {
                 current += code[i++];
             }
             i--;
 
-            if (isKeyword(current))
+            if (isKeyword(current)) {
                 tokens.push_back({ "KEYWORD", current });
-            else
-                tokens.push_back({ "IDENTIFIER", current });
+            }
+            else {
+                // если перед словом был тип int или float, считаем это объявлением идентификатора
+                // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                bool afterDeclarationKeyword = !tokens.empty() &&
+                    tokens.back().type == "KEYWORD" &&
+                    (tokens.back().value == "int" || tokens.back().value == "float");
+
+
+                if (afterDeclarationKeyword) {
+                    if (!isKnownIdentifier(current, identifiers)) {
+                        identifiers.push_back(current);
+                    }
+                    tokens.push_back({ "IDENTIFIER", current });
+                }
+                else if (isKnownIdentifier(current, identifiers)) {
+                    tokens.push_back({ "IDENTIFIER", current });
+                }
+                else {
+                    addError("неизвестный идентификатор: " + current, wordStart);
+                }
+            }
         }
 
-        // числа + ошибки
-        else if (isdigit(code[i])) {
+        // числа
+        else if (isdigit((unsigned char)code[i])) {
             current = "";
             bool hasDot = false;
+            bool hasError = false;
 
-            while (i < code.length() && (isdigit(code[i]) || code[i] == '.')) {
+            while (i < (int)code.length() &&
+                (isdigit((unsigned char)code[i]) || code[i] == '.' || code[i] == ',')) {
+
                 if (code[i] == '.') {
                     if (hasDot) {
-                        errors.push_back("Ошибка: некорректное число: " + current + ".");
-                        break;
+                        addError("некорректное число: лишняя точка", i + 1);
+                        hasError = true;
                     }
                     hasDot = true;
                 }
+
+                if (code[i] == ',') {
+                    addError("в числе используется запятая вместо точки", i + 1);
+                    hasError = true;
+                }
+
                 current += code[i++];
             }
 
-            if (i < code.length() && isalpha(code[i])) {
-                errors.push_back("Ошибка: буквы в числе: " + current + code[i]);
+            if (i < (int)code.length() && isalpha((unsigned char)code[i])) {
+                addError("буквы в числе: " + current + code[i], i + 1);
+                hasError = true;
             }
 
             i--;
 
-            if (hasDot)
-                tokens.push_back({ "CONSTANT_FLOAT", current });
-            else
-                tokens.push_back({ "CONSTANT_INT", current });
+            if (!hasError) {
+                if (hasDot)
+                    tokens.push_back({ "CONSTANT_FLOAT", current });
+                else
+                    tokens.push_back({ "CONSTANT_INT", current });
+            }
         }
 
         else if (isOperatorChar(code[i])) {
             current = "";
             current += code[i];
 
-            if (i + 1 < code.length() && isOperatorChar(code[i + 1])) {
+            if (i + 1 < (int)code.length() && isOperatorChar(code[i + 1])) {
                 current += code[i + 1];
                 i++;
             }
@@ -143,23 +203,18 @@ vector<Token> tokenize(string code) {
         }
 
         else {
-            errors.push_back("Ошибка: недопустимый символ: " + string(1, code[i]));
+            addError("недопустимый символ: " + string(1, code[i]), i + 1);
         }
     }
 
     return tokens;
 }
 
-int main()
-
-
-{
-
+int main() {
     setlocale(LC_ALL, "Russian");
 
     string code = readFile("test.cpp");
     vector<Token> tokens = tokenize(code);
-
 
     cout << "Лексема\t\tТип\n";
     cout << "--------------------------\n";
@@ -169,9 +224,9 @@ int main()
     }
 
     cout << "\nСписок токенов:\n[";
-    for (int i = 0; i < tokens.size(); i++) {
+    for (int i = 0; i < (int)tokens.size(); i++) {
         cout << "(" << tokens[i].type << ", " << tokens[i].value << ")";
-        if (i != tokens.size() - 1) cout << ", ";
+        if (i != (int)tokens.size() - 1) cout << ", ";
     }
     cout << "]\n";
 

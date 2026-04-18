@@ -1,10 +1,11 @@
 #include <iostream>
 using namespace std;
+fnfnfnf
 int main() {
 int x;
-int y;
+float y;
 x = 2;
-y = 3.14;
+y = 3,14;
 if (x < y) {
 cout << "x less y" << endl;
 }
