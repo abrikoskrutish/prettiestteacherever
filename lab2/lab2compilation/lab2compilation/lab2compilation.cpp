@@ -31,7 +31,6 @@ bool isOperatorChar(char c) {
     return string("+-*/=<>&|!").find(c) != string::npos;
 }
 
-// Проверка, есть ли идентификатор в списке разрешённых
 bool isKnownIdentifier(const string& s, const vector<string>& identifiers) {
     for (const auto& id : identifiers) {
         if (id == s) return true;
@@ -56,7 +55,6 @@ string readFile(string filename) {
 vector<Token> tokenize(const string& code) {
     vector<Token> tokens;
 
-    // Изначально известные идентификаторы
     vector<string> identifiers = { "std", "cout", "endl" };
 
     string current;
@@ -124,8 +122,6 @@ vector<Token> tokenize(const string& code) {
                 tokens.push_back({ "KEYWORD", current });
             }
             else {
-                // если перед словом был тип int или float, считаем это объявлением идентификатора
-                // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
                 bool afterDeclarationKeyword = !tokens.empty() &&
                     tokens.back().type == "KEYWORD" &&
                     (tokens.back().value == "int" || tokens.back().value == "float");
